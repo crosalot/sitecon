@@ -1,21 +1,36 @@
 <?php
 
 /**
- * Implementation of hook_perm().
+ * Implementation of hook_permission().
  */
-function sitecon_perm() {
-  return array('site connection');
+function sitecon_permission() {
+  return array(
+    'site connection' => array(
+      'title' => t('Multiple site connection'),
+      'description' => t('When user login/logout on this site, auto login/logout server site.'),
+    )
+  );
 }
 /**
  * Implementation of hook_menu().
  */
 function sitecon_menu() {
-  $items['admin/settings/sitecon'] = array(
+
+  $items['admin/config/sitecon/global'] = array(
+   'title' => 'Global',
+   'type' => MENU_DEFAULT_LOCAL_TASK,
+   'access arguments' => array('administer site configuration'),
+   'weight' => -10,
+  );
+    
+  $items['admin/config/sitecon'] = array(
     'title' => 'Sites Connections',
     'description' => 'Sites connections many to many sites.',
     'page callback' => 'sitecon',
     'access arguments' => array('administer site configuration'),
+    'type' => MENU_NORMAL_ITEM,
   );
+
   return $items;
 }
 
@@ -57,15 +72,15 @@ function sitecon_decode($key, $data) {
 
 function sitecon_autoregister($user) {
   if ($user->pass) {
-    if($account = db_fetch_object(db_query("SELECT * FROM users WHERE LOWER(name) = LOWER('%s')", $user->name))) {
+    if($account = db_query("SELECT * FROM users WHERE LOWER(name) = LOWER(:name)", array(':name' => $user->name))->fetchObject()) {
       return $account;
     }
   }
   // Case email already registered
-  if ($account = db_fetch_object(db_query("SELECT * FROM users WHERE LOWER(mail) = LOWER('%s')", $user->mail))) {
+  if ($account = db_query("SELECT * FROM users WHERE LOWER(mail) = LOWER(:mail)", array(':mail' => $user->mail))->fetchObject()) {
     return $account;
   }
-  if ($account = db_fetch_object(db_query("SELECT * FROM users WHERE LOWER(name) = LOWER('%s')", $user->mail))) {
+  if ($account = db_query("SELECT * FROM users WHERE LOWER(name) = LOWER(:mail)", array(':mail' => $user->mail))->fetchObject()) {
     return;
   }
   
@@ -81,7 +96,10 @@ function sitecon_autoregister($user) {
   );
   $account = user_save('', $account);
   // Update password directly because user_save convert password to md5 normaly.
-  db_query("UPDATE users SET pass = '%s' WHERE uid = %d", $pass, $account->uid);
+  db_update('users')
+    ->fields(array('pass' => $pass))
+    ->condition('uid', $account->uid)
+    ->execute();
   _user_mail_notify('register_no_approval_required', $account);
   
   return $account;
@@ -89,13 +107,9 @@ function sitecon_autoregister($user) {
 
 function sitecon_autologin($account) {
   global $user;
-  if (!$account || drupal_is_denied('mail', $account->mail) || $user->uid) { return; }
-  $user = $account;
-  $user->login = time();
-  
-  // Log
-  watchdog('user', 'Session opened for %name.', array('%name' => $user->name));
-  db_query("UPDATE {users} SET login = %d WHERE uid = %d", $user->login, $user->uid);
+  if (!$account || drupal_is_denied(ip_address()) || $user->uid) { return $account; }
+  $user = user_load($account->uid);
+  user_login_finalize();
   return $user;
 }
 
@@ -116,18 +130,26 @@ function sitecon_autologout() {
 // Settings form for server and client extends ====================================
 
 function sitecon_list($type) {
-  $rs = db_query("SELECT * FROM sitecon_$type");
+  $rs = db_select('sitecon_'.$type, 's')
+    ->fields('s')
+    ->extend('PagerDefault')
+    ->extend('TableSort')
+    ->limit(220)
+    ->execute();
   $items = array();
-  while ($item = db_fetch_object($rs)) {
-    $items[] = array(l($item->domain, 'admin/settings/sitecon/'.$type.'/'.$item->id.'/edit'), $item->apikey);
+  foreach ($rs as $item) {
+    $items[] = array(l($item->domain, 'admin/config/sitecon/'.$type.'/'.$item->id.'/edit'), $item->apikey);
   }
-  return '<h4>'.l('Add Item', 'admin/settings/sitecon/'.$type.'/add').'</h4>'.theme('table', array('Domain', 'API Key'), $items);
+  return theme('table', array(
+    'header' => array('Domain', 'API Key'), 
+    'rows' => $items,
+  )).theme('pager');
 }
 
 /**
  * Implementation of hook_form().
  */
-function sitecon_form($form_state, $id = 0, $type) {
+function sitecon_form($node, $form_state, $id = 0, $type) {
   $item = sitecon_get_item($id, $type);
   $form['type'] = array(
     '#type' => 'hidden',
@@ -171,29 +193,41 @@ function sitecon_form_submit($form, &$form_state) {
   $type = $form_state['values']['type'];
   switch ($form_state['values']['op']) {
     case 'create':
-      db_query("INSERT INTO sitecon_$type VALUES(NULL, '%s', '%s', '%s')", md5($form_state['values']['privatekey']), $form_state['values']['domain'], $form_state['values']['apikey']);
+      db_merge('sitecon_'.$type)
+        ->key(array(
+          'privatekey' => md5($form_state['values']['privatekey']),
+          'domain' => $form_state['values']['domain'],
+        ))
+        ->fields(array(
+          'apikey' => $form_state['values']['apikey'],
+        ))
+        ->execute();
       break;
     case 'update':
+      $fields = array(
+        'domain' => $form_state['values']['domain'],
+        'apikey' => $form_state['values']['apikey'],
+      );
       if ($form_state['values']['privatekey']) {
-        db_query("UPDATE sitecon_$type SET domain = '%s', apikey = '%s' WHERE id = %d", $form_state['values']['domain'], $form_state['values']['apikey'], $form_state['values']['id']);
+        $fields['privatekey'] = md5($form_state['values']['privatekey']);
       }
-      else {
-        db_query("UPDATE sitecon_$type SET privatekey = '%s', domain = '%s', apikey = '%s' WHERE id = %d", md5($form_state['values']['privatekey']), $form_state['values']['domain'], $form_state['values']['apikey'], $form_state['values']['id']);
-      }
-      
+      db_update('sitecon_'.$type)
+        ->fields($fields)
+        ->condition('id', $form_state['values']['id'])
+        ->execute();
       break;
     case 'delete':
-      drupal_goto('admin/settings/sitecon/'.$type.'/'.$form_state['values']['id'].'/delete');
+      drupal_goto('admin/config/sitecon/'.$type.'/'.$form_state['values']['id'].'/delete');
       break;
   }
   drupal_set_message(ucfirst($form_state['values']['op']).' completed.');
-  drupal_goto('admin/settings/sitecon/'.$type);
+  drupal_goto('admin/config/sitecon/'.$type);
 }
 
 /**
  * Implementation of hook_form().
  */
-function sitecon_delete_form($form_state, $id = 0, $type) {
+function sitecon_delete_form($node, $form_state, $id = 0, $type) {
   $form['type'] = array(
     '#type' => 'hidden',
     '#value' => $type,
@@ -209,25 +243,35 @@ function sitecon_delete_form($form_state, $id = 0, $type) {
   $form['submit'] = array(
     '#type' => 'submit',
     '#value' => 'Confirm',
-    '#suffix' => '<input type="button" value="Cancel" onclick="history.go(-1)" />',
+  );
+  $form['cancel'] = array(
+    '#type' => 'submit',
+    '#value' => 'Cancel',
   );
   return $form;
 }
 
 function sitecon_delete_form_submit($form, &$form_state) {
   $type = $form_state['values']['type'];
-  db_query("DELETE FROM sitecon_$type WHERE id = %d", $form_state['values']['id']);
-  drupal_goto('admin/settings/sitecon/'.$type);
+  if ($form_state['values']['op'] == 'Confirm') {
+    db_delete('sitecon_'.$type)
+      ->condition('id', $form_state['values']['id'])
+      ->execute();
+    drupal_goto('admin/config/sitecon/'.$type);
+  }
+  else {
+    drupal_goto('admin/config/sitecon/'.$type.'/'.$form_state['values']['id'].'/edit');
+  }
 }
 
 function sitecon_get_item($id = 0, $type) {
-  return db_fetch_object(db_query("SELECT * FROM sitecon_$type WHERE id = %d", $id));
+  return db_query("SELECT * FROM {sitecon_$type} WHERE id = :id", array(':id' => $id))->fetchObject();
 }
 
 function sitecon_get_item_from_domain($domain, $type) {
-  return db_fetch_object(db_query("SELECT * FROM sitecon_$type WHERE domain = '%s'", $domain));
+  return db_query("SELECT * FROM {sitecon_$type} WHERE domain = :domain", array(':domain' => $domain))->fetchObject();
 }
 
 function sitecon_get_item_from_apikey($apikey, $type) {
-  return db_fetch_object(db_query("SELECT * FROM sitecon_$type WHERE apikey = '%s'", $apikey));
+  return db_query("SELECT * FROM {sitecon_$type} WHERE apikey = :apikey", array(':apikey' => $apikey))->fetchObject();
 }

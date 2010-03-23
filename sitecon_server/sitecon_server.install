@@ -22,7 +22,7 @@ function sitecon_server_schema() {
       'cuid' => array('type' => 'int', 'length' => '11', 'unsigned' => TRUE, 'not null' => TRUE),
       'uid' => array('type' => 'int', 'length' => '11', 'unsigned' => TRUE, 'not null' => TRUE),
     ),
-    'primary key' => array('cid, cuid'),
+    'primary key' => array('cid', 'cuid'),
   );
   return $schema;
 }

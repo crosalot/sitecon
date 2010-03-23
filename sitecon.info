@@ -2,4 +2,5 @@
 name = Site Connect
 description = Site connect base to auto register/login.
 package = Site Connect
-core = 6.x
+core = 7.x
+files[] = sitecon.module
