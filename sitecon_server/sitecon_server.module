@@ -112,7 +112,7 @@ function sitecon_server_register_form($node, &$form_state) {
 function sitecon_server_register_form_submit($form, &$form_state) {
   $domain = str_replace('http://', '', $form_state['values']['domain']);
   $form_state['storage']['domain'] = $domain;
-  $privatekey = md5($form_state['values']['privatekey']);
+  $privatekey = md5($form_state['input']['privatekey']);
   $form_state['storage']['privatekey'] = '';
   $apikey = sitecon_server_genkey($privatekey);
   $form_state['storage']['apikey'] = $apikey;
@@ -197,15 +197,17 @@ function sitecon_server_connect() {
         break;
       case 'after_update':
         $data->uid = $account->uid;
+        require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
         db_update('users')
           ->fields(array(
             'mail' => $data->mail,
-            'pass' => $data->pass,
+            'pass' => user_hash_password(trim($data->pass)),
           ))
           ->condition('name', $data->name)
           ->execute();
         break;
     } 
+
   
     // Map client user and server user.
     sitecon_server_user_map($client->id, $data->uid, $account->uid);

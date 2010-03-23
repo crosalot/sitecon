@@ -98,7 +98,7 @@ function sitecon_client_connect($id, $status, $account = NULL) {
     if ($status == 'after_update') {
       $data->name = $account->name;
       $data->language = $account>language;
-      $data->pass = $account->pass;
+      $data->pass = $account->truepass;
     }
 
     // One time connect for security @see sitecon_client_confirm
@@ -113,9 +113,8 @@ function sitecon_client_connect($id, $status, $account = NULL) {
     
     // Request with iframe because iframe similar that user go to the server page and server can auto login for this user
     $output .= '<iframe src ="http://'.$server->domain.'/sitecon/server/connect?'.$query.'" width="0" height="0" style="display: none;">';
-    $output .=  '<p>Your browser does not support iframes.</p>';
-    $output .=  '</iframe>';
-    $output .= 'http://'.$server->domain.'/sitecon/server/connect?status='.$status.'&id='.$server->id.'&apikey='.$server->apikey.'&code='.sitecon_encode($server->privatekey, $data);
+    $output .=   '<p>Your browser does not support iframes.</p>';
+    $output .= '</iframe>';
     
     if (isset($_GET['redirect'])) {
       $output = '<html><head><title>redirect</title><meta http-equiv="refresh" content="0;url='.$_GET['redirect'].'" /></head><body>'.$output.'</body></html>';
@@ -136,7 +135,7 @@ function sitecon_client_confirm() {
   $data = sitecon_decode($server->privatekey, $_GET['code']);
   
   // One time connect for security
-  if (TRUE || sitecon_client_get_session($data->sid)) {
+  if (sitecon_client_get_session($data->sid)) {
     sitecon_client_delete_session($sid);
     $account = db_query("SELECT u.* FROM {users} u, {sessions} s WHERE u.uid = s.uid AND s.sid = :sid", array(':sid' => $data->sid))->fetchObject();
     
@@ -163,12 +162,14 @@ function sitecon_client_user($op, &$edit, &$account) {
   $redirect = '';
   if (user_access('site connection')) {
     $rs = db_query("SELECT id FROM {sitecon_client}");
-    $redirect = $op == 'update'? 'user': $redirect;
+    $redirect = $op == 'after_update'? 'user': $redirect;
     print '<html><head><title>redirect</title><meta http-equiv="refresh" content="0;url=/'.$redirect.'" /></head><body>';
+    //print '<html><head><title>redirect</title></head><body>';
     foreach ($rs as $server) {
       sitecon_client_connect($server->id, $op, $account);
     }
     print '</body></html>';
+    exit();
   }
 }
 
@@ -182,7 +183,7 @@ function sitecon_client_user_login(&$edit, $account) {
 /**
  * Implementation of hook_user_logout().
  */
-function sitecon_client_user_logout(&$edit, $account) {
+function sitecon_client_user_logout($account) {
   sitecon_client_user('logout', $edit, $account);
 }
 
@@ -190,5 +191,21 @@ function sitecon_client_user_logout(&$edit, $account) {
  * Implementation of hook_user_update().
  */
 function sitecon_client_user_update(&$edit, $account, $category) {
+  global $truepass;
+  $account->truepass = $truepass;
   sitecon_client_user('after_update', $edit, $account);
+}
+
+/**
+ * Implementation of hook_user_update().
+ */
+function sitecon_client_form_alter(&$form, &$form_state, $form_id) {
+  if ($form_id == 'user_profile_form') {
+    $form['#submit'] = array_merge(array('sitecon_user_submit'), $form['#submit']);
+  }
+}
+
+function sitecon_user_submit(&$form, &$form_state) {
+  global $truepass;
+  $truepass = $form_state['values']['pass'];
 }

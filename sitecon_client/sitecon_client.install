@@ -30,6 +30,10 @@ function sitecon_client_schema() {
  */
 function sitecon_client_install() {
   drupal_install_schema('sitecon_client');
+  db_update('system')
+    ->fields(array('weight' => 100))
+    ->condition('name', 'sitecon_client')
+    ->execute();
 }
 
 /**
