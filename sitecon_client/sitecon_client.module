@@ -133,6 +133,7 @@ function sitecon_client_confirm() {
 
   $server = sitecon_get_item($_GET['id'], 'client');
   $data = sitecon_decode($server->privatekey, $_GET['code']);
+  $status = $_GET['status'];
   
   // One time connect for security
   if (sitecon_client_get_session($data->sid)) {
