@@ -197,12 +197,13 @@ function sitecon_server_connect() {
         break;
       case 'after_update':
         $data->uid = $account->uid;
-        require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+        $fields = array('mail' => $data->mail);
+        if ($data->pass) {
+          require_once DRUPAL_ROOT . '/' . variable_get('password_inc', 'includes/password.inc');
+          $fields['pass'] = user_hash_password(trim($data->pass)); 
+        }
         db_update('users')
-          ->fields(array(
-            'mail' => $data->mail,
-            'pass' => user_hash_password(trim($data->pass)),
-          ))
+          ->fields($fields)
           ->condition('name', $data->name)
           ->execute();
         break;

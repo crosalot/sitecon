@@ -142,6 +142,10 @@ function sitecon_client_confirm() {
     if ($account) {
       // Delete large data and not use.
       unset($account->session);
+      if ($status == 'after_update') {
+        $account->pass = $data->pass;
+      }
+
       print sitecon_encode($server->privatekey, $account);
     }
     else {
@@ -183,9 +187,11 @@ function sitecon_client_user_login(&$edit, $account) {
 /**
  * Implementation of hook_user_logout().
  */
+/*
 function sitecon_client_user_logout($account) {
   sitecon_client_user('logout', $edit, $account);
 }
+*/
 
 /**
  * Implementation of hook_user_update().
