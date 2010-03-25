@@ -145,7 +145,7 @@ function sitecon_server_get_apikey($domain, $privatekey) {
       'apikey' => $apikey,
     ))
     ->execute();
-  drupal_json($apikey);
+  drupal_json_output($apikey);
 }
 
 function sitecon_server_user_map($cid, $cuid, $uid) {

@@ -6,3 +6,4 @@ core = 7.x
 dependencies[] = sitecon
 files[] = sitecon_client.module
 files[] = sitecon_client.install
+configure = admin/config/sitecon/client

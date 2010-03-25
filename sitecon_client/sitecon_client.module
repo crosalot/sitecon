@@ -86,35 +86,34 @@ function sitecon_client_connect($id, $status, $account = NULL) {
       $allow = $allow && $function($server);
     }   
     if (!$allow) {
-      return;
-    }
 
-    $data->sid = $user->sid? $user->sid: session_id();
-    $data->mail = $user->mail;
-    if ($_GET['use_name'] == 'true') {
-      $data->name = $user->name;
-    }
-    
-    if ($status == 'after_update') {
-      $data->name = $account->name;
-      $data->language = $account>language;
-      $data->pass = $account->truepass;
-    }
+      $data->sid = $user->sid? $user->sid: session_id();
+      $data->mail = $user->mail;
+      if ($_GET['use_name'] == 'true') {
+        $data->name = $user->name;
+      }
+      
+      if ($status == 'after_update') {
+        $data->name = $account->name;
+        $data->language = $account>language;
+        $data->pass = $account->truepass;
+      }
 
-    // One time connect for security @see sitecon_client_confirm
-    sitecon_client_add_session($data->sid);
+      // One time connect for security @see sitecon_client_confirm
+      sitecon_client_add_session($data->sid);
 
-    $query = drupal_http_build_query(array(
-      'status' => $status,
-      'id' => $server->id,
-      'apikey' => $server->apikey,
-      'code' => sitecon_encode($server->privatekey, $data),
-    ));
-    
-    // Request with iframe because iframe similar that user go to the server page and server can auto login for this user
-    $output .= '<iframe src ="http://'.$server->domain.'/sitecon/server/connect?'.$query.'" width="0" height="0" style="display: none;">';
-    $output .=   '<p>Your browser does not support iframes.</p>';
-    $output .= '</iframe>';
+      $query = drupal_http_build_query(array(
+        'status' => $status,
+        'id' => $server->id,
+        'apikey' => $server->apikey,
+        'code' => sitecon_encode($server->privatekey, $data),
+      ));
+      
+      // Request with iframe because iframe similar that user go to the server page and server can auto login for this user
+      $output .= '<iframe src ="http://'.$server->domain.'/sitecon/server/connect?'.$query.'" width="0" height="0" style="display: none;">';
+      $output .=   '<p>Your browser does not support iframes.</p>';
+      $output .= '</iframe>';
+    }
     
     if (isset($_GET['redirect'])) {
       $output = '<html><head><title>redirect</title><meta http-equiv="refresh" content="0;url='.$_GET['redirect'].'" /></head><body>'.$output.'</body></html>';
