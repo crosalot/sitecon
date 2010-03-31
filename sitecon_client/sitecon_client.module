@@ -163,17 +163,19 @@ function sitecon_client_confirm() {
 }
 
 function sitecon_client_user($op, &$edit, &$account) {
-  $redirect = '';
-  if (user_access('site connection')) {
-    $rs = db_query("SELECT id FROM {sitecon_client}");
-    $redirect = $op == 'after_update'? 'user': $redirect;
-    print '<html><head><title>redirect</title><meta http-equiv="refresh" content="0;url=/'.$redirect.'" /></head><body>';
-    //print '<html><head><title>redirect</title></head><body>';
-    foreach ($rs as $server) {
-      sitecon_client_connect($server->id, $op, $account);
+  if ($account->uid != 1) {
+    $redirect = '';
+    if (user_access('site connection')) {
+      $rs = db_query("SELECT id FROM {sitecon_client}");
+      $redirect = $op == 'after_update'? 'user': $redirect;
+      print '<html><head><title>redirect</title><meta http-equiv="refresh" content="0;url=/'.$redirect.'" /></head><body>';
+      //print '<html><head><title>redirect</title></head><body>';
+      foreach ($rs as $server) {
+        sitecon_client_connect($server->id, $op, $account);
+      }
+      print '</body></html>';
+      exit();
     }
-    print '</body></html>';
-    exit();
   }
 }
 
